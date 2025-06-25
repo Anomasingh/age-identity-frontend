@@ -1,25 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
-  // Get the incoming form data
-  const formData = await req.formData();
+  try {
+    const formData = await req.formData();
 
-  // Prepare a new FormData for the backend
-  const backendForm = new FormData();
-  for (const [key, value] of formData.entries()) {
-    backendForm.append(key, value as Blob);
+    const backendForm = new FormData();
+    for (const [key, value] of formData.entries()) {
+      backendForm.append(key, value as Blob);
+    }
+
+    const flaskRes = await fetch('http://localhost:5000/verify', {
+      method: 'POST',
+      body: backendForm,
+    });
+
+    const contentType = flaskRes.headers.get('content-type');
+
+    if (contentType && contentType.includes('application/json')) {
+      const data = await flaskRes.json();
+      return NextResponse.json(data, { status: flaskRes.status });
+    } else {
+      const text = await flaskRes.text();
+      console.error('Flask returned non-JSON response:', text);
+      return NextResponse.json({ error: 'Flask backend error', details: text }, { status: 500 });
+    }
+  } catch (err) {
+    console.error('Error communicating with backend:', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-
-  // Forward the form data to the Flask backend
-  const flaskRes = await fetch('http://localhost:5000/verify', {
-    method: 'POST',
-    body: backendForm,
-    // Do NOT set Content-Type header; fetch will set it with the correct boundary for FormData
-  });
-
-  // Get the JSON response from Flask
-  const data = await flaskRes.json();
-
-  // Return the JSON to the frontend
-  return NextResponse.json(data, { status: flaskRes.status });
 }
